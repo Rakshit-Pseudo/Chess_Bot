@@ -192,6 +192,37 @@ def draw_promotion_dialog(screen, font, player_color):
     
     return buttons
 
+def is_promotion_move(chess_board, start_square, end_square):
+    """Check if a move is a pawn promotion"""
+    piece = chess_board.piece_at(start_square)
+    if piece is None or piece.piece_type != chess.PAWN:
+        return False
+    
+    # Get the destination rank
+    end_rank = chess.square_rank(end_square)
+    
+    # White pawn promoting to rank 7 (8th rank in human notation)
+    if piece.color == chess.WHITE and end_rank == 7:
+        return True
+    # Black pawn promoting to rank 0 (1st rank in human notation)  
+    elif piece.color == chess.BLACK and end_rank == 0:
+        return True
+    
+    return False
+
+def execute_bot_turn(chess_board, bot, selected_difficulty):
+    """Execute the bot's turn and return updated status"""
+    bot_move = bot.get_best_move(chess_board)
+    chess_board.push(bot_move)
+    
+    # Check if the game is over after bot's move
+    if chess_board.is_checkmate():
+        return "Checkmate! Bot wins!", True
+    elif chess_board.is_stalemate() or chess_board.is_insufficient_material():
+        return "Draw!", True
+    else:
+        return "Your turn", False
+
 def main():
     """Main function to run the game"""
     pg.init()
@@ -286,22 +317,9 @@ def main():
                                 screen.blit(status_text, (10, HEIGHT + 10))
                                 pg.display.flip()
                                 
-                                # Get bot's move
-                                bot_move = bot.get_best_move(chess_board)
-                                
-                                # Make bot's move
-                                chess_board.push(bot_move)
+                                # Execute bot turn
+                                status_message, game_over = execute_bot_turn(chess_board, bot, selected_difficulty)
                                 pygame_board = convert_board_to_pygame_format(chess_board)
-                                
-                                # Check if the game is over after bot's move
-                                if chess_board.is_checkmate():
-                                    status_message = "Checkmate! Bot wins!"
-                                    game_over = True
-                                elif chess_board.is_stalemate() or chess_board.is_insufficient_material():
-                                    status_message = "Draw!"
-                                    game_over = True
-                                else:
-                                    status_message = "Your turn"
                             break
                 
                 elif game_state == GAME_STATE:
@@ -327,13 +345,21 @@ def main():
                                 end_square = chess.square(chess_col, chess_row)
                                 
                                 # Check for pawn promotion
-                                piece = chess_board.piece_at(start_square)
-                                if (piece is not None and piece.piece_type == chess.PAWN and 
-                                    ((chess_row == 7 and player_color == chess.WHITE) or 
-                                     (chess_row == 0 and player_color == chess.BLACK))):
-                                    # This is a promotion move
-                                    promotion_move = chess.Move(start_square, end_square)
-                                    if promotion_move in chess_board.legal_moves:
+                                if is_promotion_move(chess_board, start_square, end_square):
+                                    # Create a temporary move to check if it's legal
+                                    temp_move = chess.Move(start_square, end_square)
+                                    
+                                    # Check if any promotion move with this start/end is legal
+                                    promotion_legal = False
+                                    for promotion_piece in [chess.QUEEN, chess.ROOK, chess.BISHOP, chess.KNIGHT]:
+                                        test_move = chess.Move(start_square, end_square, promotion=promotion_piece)
+                                        if test_move in chess_board.legal_moves:
+                                            promotion_legal = True
+                                            break
+                                    
+                                    if promotion_legal:
+                                        # This is a legal promotion move
+                                        promotion_move = temp_move
                                         game_state = PROMOTION_STATE
                                     else:
                                         # Illegal move, try to select new square
@@ -373,22 +399,9 @@ def main():
                                             screen.blit(status_text, (10, HEIGHT + 10))
                                             pg.display.flip()
                                             
-                                            # Get bot's move
-                                            bot_move = bot.get_best_move(chess_board)
-                                            
-                                            # Make bot's move
-                                            chess_board.push(bot_move)
+                                            # Execute bot turn
+                                            status_message, game_over = execute_bot_turn(chess_board, bot, selected_difficulty)
                                             pygame_board = convert_board_to_pygame_format(chess_board)
-                                            
-                                            # Check if the game is over after bot's move
-                                            if chess_board.is_checkmate():
-                                                status_message = "Checkmate! Bot wins!"
-                                                game_over = True
-                                            elif chess_board.is_stalemate() or chess_board.is_insufficient_material():
-                                                status_message = "Draw!"
-                                                game_over = True
-                                            else:
-                                                status_message = "Your turn"
                                     else:
                                         # Illegal move, try to select new square
                                         square = chess.square(chess_col, chess_row)
